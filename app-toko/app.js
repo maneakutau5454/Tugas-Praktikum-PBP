@@ -3,7 +3,10 @@
 //  Fetch data barang dari PHP API, render ke tabel HTML
 // ============================================================
 
-const API_URL = 'http://localhost/PBPv2/api-toko/get_barang.php';
+const API_URL        = 'https://tugaspraktikumpbp.great-site.net/api-toko/get_barang.php';
+const API_TAMBAH_URL = 'https://tugaspraktikumpbp.great-site.net/api-toko/tambah_barang.php';
+const API_HAPUS_URL  = 'https://tugaspraktikumpbp.great-site.net/api-toko/hapus_barang.php';
+const API_EDIT_URL   = 'https://tugaspraktikumpbp.great-site.net/api-toko/edit_barang.php';
 
 // Cache data agar filter bisa bekerja tanpa fetch ulang
 let cachedData = [];
@@ -43,7 +46,7 @@ function renderTabel(data) {
     if (data.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-14 text-center text-white/30 text-sm">
+                <td colspan="6" class="py-14 text-center text-white/30 text-sm">
                     😕 Tidak ada data yang cocok.
                 </td>
             </tr>`;
@@ -59,11 +62,35 @@ function renderTabel(data) {
 
         barisHTML += `
             <tr class="border-b border-white/5 animate-fade-in" style="animation-delay: ${index * 40}ms">
-                <td class="px-6 py-4 text-white/30 font-mono text-xs">${barang.id}</td>
+                <td class="px-6 py-4 text-white/30 font-mono text-xs">${index + 1}</td>
                 <td class="px-6 py-4 font-medium text-white/90">${barang.nama_barang}</td>
                 <td class="px-6 py-4 text-right text-amber-300 font-semibold tabular-nums">${formatRupiah(barang.harga)}</td>
                 <td class="px-6 py-4 text-center tabular-nums">${stokDisplay}</td>
                 <td class="px-6 py-4 text-center">${badgeStok(barang.stok)}</td>
+                <td class="px-6 py-4 text-center">
+                    <div class="flex items-center justify-center gap-2">
+                        <!-- Tombol Edit (Challenge Mandiri) -->
+                        <button
+                            onclick="siapkanEdit(${barang.id})"
+                            class="p-2 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg transition-all"
+                            title="Edit Barang"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </button>
+                        <!-- Tombol Hapus -->
+                        <button
+                            onclick="hapusBarang(${barang.id}, '${barang.nama_barang}')"
+                            class="p-2 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all"
+                            title="Hapus Barang"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
+                </td>
             </tr>`;
     });
 
@@ -105,7 +132,7 @@ async function ambilDataBarang() {
     // Tampilkan loading spinner
     tbody.innerHTML = `
         <tr id="loading-row">
-            <td colspan="5" class="py-16 text-center">
+            <td colspan="6" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-3">
                     <div class="spinner"></div>
                     <span class="text-white/40 text-sm">Mengambil data dari server…</span>
@@ -140,7 +167,7 @@ async function ambilDataBarang() {
 
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-14 text-center">
+                <td colspan="6" class="py-14 text-center">
                     <div class="flex flex-col items-center gap-2 text-red-400">
                         <span class="text-3xl">⚠️</span>
                         <p class="font-semibold">Gagal terhubung ke server</p>
@@ -162,8 +189,6 @@ async function ambilDataBarang() {
 }
 
 // ── POST: Tambah Barang ──────────────────────────────────────
-
-const API_TAMBAH_URL = 'http://localhost/PBPv2/api-toko/tambah_barang.php';
 
 /**
  * Tampilkan alert inline di dalam form.
@@ -230,6 +255,97 @@ async function tambahBarang(nama, harga, stok) {
     }
 }
 
+/** Kirim data update ke PHP API via POST JSON */
+async function updateBarang(id, nama, harga, stok) {
+    const btnLabel = document.getElementById('btn-simpan-label');
+    const btn      = document.getElementById('btn-simpan');
+
+    btn.disabled    = true;
+    btnLabel.textContent = 'Memperbarui…';
+
+    try {
+        const response = await fetch(API_EDIT_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ id: id, nama_barang: nama, harga: harga, stok: stok })
+        });
+
+        const hasil = await response.json();
+
+        if (hasil.status === 'success') {
+            tampilAlert(hasil.pesan || 'Data berhasil diperbarui!', 'success');
+            document.getElementById('form-tambah-barang').reset();
+            await ambilDataBarang(); // Refresh tabel
+        } else {
+            tampilAlert(hasil.pesan || 'Gagal memperbarui data.', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Gagal Update:', error);
+        tampilAlert('Tidak dapat terhubung ke server API.', 'error');
+    } finally {
+        btn.disabled    = false;
+        btnLabel.textContent = 'Simpan Barang';
+    }
+}
+
+// ── DELETE: Hapus Barang ─────────────────────────────────────
+
+/** Hapus barang berdasarkan ID dengan konfirmasi */
+async function hapusBarang(id, nama) {
+    // 1. Tampilkan konfirmasi (Rule #2)
+    const yakin = confirm(`Apakah Anda yakin ingin menghapus "${nama}"?`);
+
+    if (!yakin) return;
+
+    try {
+        const response = await fetch(API_HAPUS_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ id: id })
+        });
+
+        const hasil = await response.json();
+
+        if (hasil.status === 'success') {
+            tampilAlert(hasil.pesan || 'Barang berhasil dihapus!', 'success');
+            await ambilDataBarang(); // Refresh tabel
+        } else {
+            tampilAlert(hasil.pesan || 'Gagal menghapus barang.', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Gagal Hapus:', error);
+        tampilAlert('Terjadi kesalahan saat menghapus data.', 'error');
+    }
+}
+
+// ── EDIT: Siapkan Edit (Challenge Mandiri) ───────────────────
+
+/** Pindahkan data dari tabel kembali ke form */
+function siapkanEdit(id) {
+    // 1. Cari data di cache
+    const barang = cachedData.find(b => b.id == id);
+
+    if (!barang) return;
+
+    // 2. Isi form field
+    document.getElementById('input-id').value    = barang.id;
+    document.getElementById('input-nama').value  = barang.nama_barang;
+    document.getElementById('input-harga').value = barang.harga;
+    document.getElementById('input-stok').value  = barang.stok;
+
+    // 3. Ubah UI tombol
+    document.getElementById('btn-simpan-label').textContent = 'Update Barang';
+
+    // 4. Buka form jika sedang tertutup
+    const body = document.getElementById('form-body');
+    if (body.style.display === 'none') toggleForm();
+
+    // 5. Scroll ke atas agar user sadar data sudah masuk form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    tampilAlert(`Mode Edit: Mengedit "${barang.nama_barang}"`, 'success');
+}
+
 /** Toggle tampil/sembunyikan form body */
 function toggleForm() {
     const body  = document.getElementById('form-body');
@@ -251,6 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // ⛔ Cegah reload/blink halaman!
         event.preventDefault();
 
+        // Ambil ID jika ada (mode edit)
+        const id    = document.getElementById('input-id').value;
         // Ambil nilai dari input
         const nama  = document.getElementById('input-nama').value.trim();
         const harga = document.getElementById('input-harga').value.trim();
@@ -267,7 +385,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Kirim ke API
-        await tambahBarang(nama, harga, stok);
+        if (id) {
+            await updateBarang(id, nama, harga, stok);
+        } else {
+            await tambahBarang(nama, harga, stok);
+        }
+    });
+
+    // Reset Form Listener
+    form.addEventListener('reset', () => {
+        document.getElementById('input-id').value = '';
+        document.getElementById('btn-simpan-label').textContent = 'Simpan Barang';
     });
 });
 
